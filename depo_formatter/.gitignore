@@ -1,0 +1,9 @@
+__pycache__/
+*.py[cod]
+.env
+.env.*
+venv/
+.venv/
+.idea/
+session_state.json
+depo_formatter.log

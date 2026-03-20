@@ -1,0 +1,6 @@
+customtkinter
+python-docx
+docxtpl
+pdfplumber
+requests
+python-dotenv
