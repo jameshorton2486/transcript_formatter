@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pprint import pprint
 
-from ufm_engine.context_builder import ContextBuilder
-from ufm_engine.template_selector import TemplateSelector
+from .context_builder import ContextBuilder
+from .template_selector import TemplateSelector
 
 
 def main() -> None:

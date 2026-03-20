@@ -9,10 +9,10 @@ from pathlib import Path
 
 from docx import Document
 
-from ufm_engine.context_builder import ContextBuilder
-from ufm_engine.template_registry import get_template_path
-from ufm_engine.template_renderer import TemplateRenderer
-from ufm_engine.template_selector import TemplateSelector
+from .context_builder import ContextBuilder
+from .template_registry import get_template_path
+from .template_renderer import TemplateRenderer
+from .template_selector import TemplateSelector
 
 
 class DocumentBuilder:
