@@ -13,6 +13,7 @@ from .context_builder import ContextBuilder
 from .template_registry import get_template_path
 from .template_renderer import TemplateRenderer
 from .template_selector import TemplateSelector
+from .ufm_formatter import UFMFormatter
 
 
 class DocumentBuilder:
@@ -38,6 +39,8 @@ class DocumentBuilder:
         try:
             context = ContextBuilder().build_context(job_data)
             template_names = TemplateSelector().select_templates(job_data)
+            if not template_names:
+                raise ValueError("No templates selected for document build.")
             print(f"Templates selected: {template_names}")
 
             temp_dir.mkdir(parents=True, exist_ok=True)
@@ -59,16 +62,17 @@ class DocumentBuilder:
                 rendered_files.append(temp_file)
 
             print("Merging documents...")
-            merged_document = Document()
-            self._clear_document_body(merged_document)
+            merged_document = Document(str(rendered_files[0]))
 
-            for index, rendered_file in enumerate(rendered_files):
+            for index, rendered_file in enumerate(rendered_files[1:], start=1):
                 sub_document = Document(str(rendered_file))
                 self._append_document(merged_document, sub_document)
                 if index < len(rendered_files) - 1:
                     merged_document.add_page_break()
 
             output_file.parent.mkdir(parents=True, exist_ok=True)
+            formatter = UFMFormatter()
+            formatter.enforce_document(merged_document)
             merged_document.save(str(output_file))
             print(f"Output saved: {output_file}")
         except FileNotFoundError:
@@ -80,13 +84,6 @@ class DocumentBuilder:
         finally:
             if temp_dir.exists():
                 shutil.rmtree(temp_dir, ignore_errors=True)
-
-    @staticmethod
-    def _clear_document_body(document: Document) -> None:
-        """Remove the default empty paragraph from a new Document."""
-        body = document.element.body
-        for element in list(body):
-            body.remove(element)
 
     @staticmethod
     def _append_document(target: Document, source: Document) -> None:
