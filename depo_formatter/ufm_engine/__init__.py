@@ -7,6 +7,8 @@ share typed data contracts across the formatting pipeline.
 
 from .data_models import MergeResult, RenderRequest, TemplateDefinition
 from .docx_merger import DocxMerger
+from .ufm_finalizer import UFMFinalizer
+from .ufm_formatter import UFMFormatter
 from .template_registry import TemplateRegistry
 from .template_renderer import TemplateRenderer
 
@@ -17,4 +19,6 @@ __all__ = [
     "TemplateDefinition",
     "TemplateRegistry",
     "TemplateRenderer",
+    "UFMFinalizer",
+    "UFMFormatter",
 ]

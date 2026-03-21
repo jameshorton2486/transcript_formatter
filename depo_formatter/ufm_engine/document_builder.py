@@ -13,19 +13,34 @@ from .context_builder import ContextBuilder
 from .template_registry import get_template_path
 from .template_renderer import TemplateRenderer
 from .template_selector import TemplateSelector
+from .ufm_finalizer import UFMFinalizer
 from .ufm_formatter import UFMFormatter
 
 
 class DocumentBuilder:
     """Render selected templates and merge them into one DOCX output."""
 
-    def build_document(self, job_data: dict, output_path: str) -> None:
+    DEFAULT_FINALIZATION_OPTIONS = {
+        "apply_box": True,
+        "apply_header_footer": True,
+        "header_text": "CAUSE NO. 2024-XXXX",
+        "footer_text": "Page 1",
+        "apply_line_numbers": True,
+    }
+
+    def build_document(
+        self,
+        job_data: dict,
+        output_path: str,
+        finalization_options: dict | None = None,
+    ) -> None:
         """Build a final transcript document from template-driven sections.
 
         Args:
             job_data: Raw job information used to build template context and
                 select applicable templates.
             output_path: Final DOCX path for the assembled transcript.
+            finalization_options: Optional toggle-based finalization controls.
 
         Raises:
             FileNotFoundError: If a required template file is missing.
@@ -73,6 +88,11 @@ class DocumentBuilder:
             output_file.parent.mkdir(parents=True, exist_ok=True)
             formatter = UFMFormatter()
             formatter.enforce_document(merged_document)
+            finalizer = UFMFinalizer()
+            finalizer.finalize_document(
+                merged_document,
+                finalization_options or self.DEFAULT_FINALIZATION_OPTIONS,
+            )
             merged_document.save(str(output_file))
             print(f"Output saved: {output_file}")
         except FileNotFoundError:
