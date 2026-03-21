@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+.env
+.env.*
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Project-specific
+session_state.json
+depo_formatter.log
+depo_formatter/logs/
+output/
+depo_formatter_backup_*/
+
+# OS
+.DS_Store
+Thumbs.db

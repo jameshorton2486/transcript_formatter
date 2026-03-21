@@ -18,11 +18,19 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 from docx.text.paragraph import Paragraph
 
+try:
+    from ..app_logging import get_logger
+except ImportError:  # pragma: no cover - supports direct module execution
+    from app_logging import get_logger
+
 from .context_builder import ContextBuilder
 from .template_registry import get_template_path
 from .template_renderer import TemplateRenderer
 from .template_selector import TemplateSelector
+from .ufm_finalizer import UFMFinalizer
 from .ufm_formatter import UFMFormatter
+
+LOGGER = get_logger(__name__)
 
 
 class DocumentBuilder:
@@ -74,7 +82,7 @@ class DocumentBuilder:
             template_names = TemplateSelector().select_templates(job_data)
             if not template_names:
                 raise ValueError("No templates selected for document build.")
-            print(f"Templates selected: {template_names}")
+            LOGGER.info("Templates selected: %s", template_names)
 
             temp_dir.mkdir(parents=True, exist_ok=True)
             renderer = TemplateRenderer()
@@ -84,18 +92,18 @@ class DocumentBuilder:
                 is_optional = template_name in {"signature_block", "certification_cont"}
                 if not template_path.is_file():
                     if is_optional:
-                        print(f"Skipping optional missing template: {template_name}")
+                        LOGGER.info("Skipping optional missing template: %s", template_name)
                         continue
                     raise FileNotFoundError(f"Template file not found: {template_path}")
 
                 temp_file = temp_dir / f"{template_name}_{uuid.uuid4().hex}.docx"
-                print(f"Rendering {template_name}...")
+                LOGGER.info("Rendering template: %s", template_name)
                 renderer.render_template(
                     template_path=str(template_path),
                     context=context,
                     output_path=str(temp_file),
                 )
-                print(f"Rendered: {temp_file}")
+                LOGGER.info("Rendered template file: %s", temp_file)
                 rendered_files.append(temp_file)
 
             builder_options = self._normalize_finalization_options(finalization_options)
@@ -107,7 +115,7 @@ class DocumentBuilder:
             )
             transcript_body = self._transcript_body_document
 
-            print("Merging sections...")
+            LOGGER.info("Merging document sections")
             ordered_sections = self._build_ordered_sections(template_names, rendered_files, transcript_body)
             if not ordered_sections:
                 raise ValueError("No document sections were generated for merge.")
@@ -120,12 +128,9 @@ class DocumentBuilder:
             output_file.parent.mkdir(parents=True, exist_ok=True)
             formatter = UFMFormatter()
             formatter.enforce_document(merged_document)
-            if builder_options["show_header"]:
-                self.apply_header(merged_document, job_data)
-            if builder_options["show_footer"]:
-                self.apply_footer(merged_document)
+            self.finalize_transcript_document(merged_document, job_data=job_data, finalization_options=builder_options)
             merged_document.save(str(output_file))
-            print(f"Output saved: {output_file}")
+            LOGGER.info("Output saved: %s", output_file)
         except FileNotFoundError:
             raise
         except ValueError:
@@ -152,6 +157,7 @@ class DocumentBuilder:
 
     def paginate(self, transcript_data: list[dict]) -> list[list[dict]]:
         """Split transcript data into 25-line pages based on wrapped line estimates."""
+        LOGGER.info("Formatting start: paginating %s transcript entries", len(transcript_data))
         pages: list[list[dict]] = []
         current_page: list[dict] = []
         line_count = 0
@@ -171,7 +177,7 @@ class DocumentBuilder:
         if current_page:
             pages.append(current_page)
 
-        print("Pagination complete")
+        LOGGER.info("Pagination result: %s page(s)", len(pages))
         return pages
 
     @staticmethod
@@ -220,7 +226,7 @@ class DocumentBuilder:
         show_format_box: bool,
     ) -> Document:
         """Generate the transcript body entirely in code."""
-        print("Generating transcript body...")
+        LOGGER.info("Formatting start: generating transcript body")
         body_document = Document()
         formatter = UFMFormatter()
         formatter.apply_document_format(body_document)
@@ -285,6 +291,7 @@ class DocumentBuilder:
                 paragraph = body_document.add_paragraph()
                 paragraph.add_run().add_break(WD_BREAK.PAGE)
 
+        LOGGER.info("Formatting end: transcript body generated")
         return body_document
 
     def _get_transcript_data(self, job_data: dict) -> list[dict]:
@@ -431,42 +438,37 @@ class DocumentBuilder:
 
         return options
 
-    def apply_header(self, document: Document, job_data: dict) -> None:
-        """Apply a centered header on page 2+ with cause number, case style, and page field."""
-        cause_number = str(job_data.get("cause_number") or "2024-XXXX").strip()
-        case_style = str(job_data.get("case_style") or job_data.get("case_name") or "").strip()
-
-        for section in document.sections:
-            section.different_first_page_header_footer = True
-            header = section.header
-            if not header.paragraphs:
-                header.add_paragraph()
-
-            for paragraph in header.paragraphs:
-                paragraph.clear()
-
-            header_para = header.paragraphs[0]
-            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            header_para.add_run(f"CAUSE NO. {cause_number}\n")
-            if case_style:
-                header_para.add_run(f"{case_style}\n")
-            header_para.add_run("Page ")
-            self._append_page_number_field(header_para)
-
-    def apply_footer(self, document: Document) -> None:
-        """Apply a centered footer with continuous page numbering."""
-        for section in document.sections:
-            footer = section.footer
-            if not footer.paragraphs:
-                footer.add_paragraph()
-
-            for paragraph in footer.paragraphs:
-                paragraph.clear()
-
-            footer_para = footer.paragraphs[0]
-            footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            footer_para.add_run("Page ")
-            self._append_page_number_field(footer_para)
+    def finalize_transcript_document(
+        self,
+        document: Document,
+        job_data: dict | None = None,
+        finalization_options: dict | None = None,
+    ) -> None:
+        """Apply optional finalization controls to a transcript document."""
+        options = self._normalize_finalization_options(finalization_options)
+        finalizer = UFMFinalizer()
+        header_text = str(
+            options.get("header_text")
+            or (job_data or {}).get("header_text")
+            or (job_data or {}).get("case_name")
+            or ""
+        ).strip()
+        footer_text = str(
+            options.get("footer_text")
+            or (job_data or {}).get("footer_text")
+            or ""
+        ).strip()
+        finalizer.finalize_document(
+            document,
+            {
+                "show_format_box": bool(options.get("show_format_box", True)),
+                "show_line_numbers": bool(options.get("show_line_numbers", True)),
+                "show_header": bool(options.get("show_header", True)),
+                "show_footer": bool(options.get("show_footer", True)),
+                "header_text": header_text,
+                "footer_text": footer_text,
+            },
+        )
 
     @staticmethod
     def _append_page_number_field(paragraph: Paragraph) -> None:

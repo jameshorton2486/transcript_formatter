@@ -9,6 +9,21 @@ class ContextBuilder:
     """Normalize raw job data into a rendering context."""
 
     REQUIRED_FIELDS = ("witness_name", "date", "reporter_name", "csr_number")
+    REQUIRED_CONTEXT_FIELDS = ("mr_ms", "zip", "answer")
+    REQUIRED_TEMPLATE_FIELDS = ("witness_name", "month", "day", "year", "reporter_name", "csr_number")
+    DEFAULTS = {
+        "answer": "",
+        "case_name": "",
+        "cause_number": "2024-XXXX",
+        "city": "San Antonio",
+        "footer_text": "",
+        "header_text": "",
+        "mr_ms": "MR.",
+        "question": "",
+        "state": "Texas",
+        "title": "",
+        "zip": "78205",
+    }
 
     def build_context(self, job_data: dict) -> dict:
         """Build a clean, template-ready context from raw job data.
@@ -47,6 +62,24 @@ class ContextBuilder:
             if key not in {"date", *self.REQUIRED_FIELDS} and value is not None
         }
         context.update(optional_fields)
+
+        for key, default_value in self.DEFAULTS.items():
+            if not context.get(key):
+                context[key] = default_value
+
+        missing_context_fields = [
+            field for field in self.REQUIRED_CONTEXT_FIELDS if not context.get(field)
+        ]
+        if missing_context_fields:
+            missing = ", ".join(missing_context_fields)
+            raise ValueError(f"Template context incomplete: {missing}")
+
+        missing_template_fields = [
+            field for field in self.REQUIRED_TEMPLATE_FIELDS if not context.get(field)
+        ]
+        if missing_template_fields:
+            missing = ", ".join(missing_template_fields)
+            raise ValueError(f"Template context incomplete: {missing}")
 
         return context
 

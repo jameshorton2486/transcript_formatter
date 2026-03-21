@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
@@ -55,12 +56,14 @@ def load_transcript(path: str) -> LoadedTranscript:
 
     if suffix == ".txt":
         return LoadedTranscript(text=load_txt(path), source_type="txt")
+    if suffix == ".json":
+        return load_json(path)
     if suffix == ".docx":
         return load_docx_transcript(path)
     if suffix == ".pdf":
         return LoadedTranscript(text=load_pdf(path), source_type="pdf")
 
-    raise ValueError("Unsupported file type. Please select a .txt, .docx, or .pdf file.")
+    raise ValueError("Unsupported file type. Please select a .txt, .json, .docx, or .pdf file.")
 
 
 def load_file(path: str) -> str:
@@ -73,6 +76,39 @@ def load_txt(path: str) -> str:
 
 def load_docx(path: str) -> str:
     return load_docx_transcript(path).text
+
+
+def load_json(path: str) -> LoadedTranscript:
+    payload = json.loads(Path(path).read_text(encoding="utf-8"))
+
+    blocks = _extract_json_speaker_blocks(payload)
+    if blocks:
+        return LoadedTranscript(
+            text=render_blocks(blocks),
+            source_type="json",
+            blocks=blocks,
+            speaker_map=build_speaker_map(blocks, scan_limit=30),
+        )
+
+    paragraph_text = _extract_json_paragraph_text(payload)
+    if paragraph_text:
+        return LoadedTranscript(
+            text=paragraph_text,
+            source_type="json",
+            blocks=[],
+            speaker_map=None,
+        )
+
+    raw_transcript = _extract_json_raw_transcript(payload)
+    if raw_transcript:
+        return LoadedTranscript(
+            text=raw_transcript,
+            source_type="json",
+            blocks=[],
+            speaker_map=None,
+        )
+
+    raise ValueError("The JSON file did not contain usable transcript text.")
 
 
 def load_docx_transcript(path: str) -> LoadedTranscript:
@@ -104,6 +140,120 @@ def load_pdf(path: str) -> str:
                 pages.append(text.strip())
 
     return "\n\n".join(pages).strip()
+
+
+def _extract_json_speaker_blocks(payload: object) -> list[tuple[int, list[str]]]:
+    utterances = _find_first_list(payload, ("utterances",))
+    if isinstance(utterances, list):
+        blocks: list[tuple[int, list[str]]] = []
+        for item in utterances:
+            if not isinstance(item, dict):
+                continue
+            speaker = item.get("speaker")
+            transcript = item.get("transcript") or item.get("text")
+            if speaker is None or not isinstance(transcript, str) or not transcript.strip():
+                continue
+            try:
+                speaker_id = int(speaker)
+            except (TypeError, ValueError):
+                continue
+            blocks.append(assemble_block(speaker_id, [transcript]))
+        if blocks:
+            return blocks
+
+    paragraphs = _find_first_list(payload, ("paragraphs",))
+    if isinstance(paragraphs, list):
+        fragments_by_speaker: dict[int, list[str]] = {}
+        ordered_speakers: list[int] = []
+        for item in paragraphs:
+            if not isinstance(item, dict):
+                continue
+            speaker = item.get("speaker")
+            text = _paragraph_text_from_json(item)
+            if speaker is None or not text:
+                continue
+            try:
+                speaker_id = int(speaker)
+            except (TypeError, ValueError):
+                continue
+            if speaker_id not in fragments_by_speaker:
+                fragments_by_speaker[speaker_id] = []
+                ordered_speakers.append(speaker_id)
+            fragments_by_speaker[speaker_id].append(text)
+        if fragments_by_speaker:
+            return [
+                assemble_block(speaker_id, fragments_by_speaker[speaker_id])
+                for speaker_id in ordered_speakers
+            ]
+
+    return []
+
+
+def _extract_json_paragraph_text(payload: object) -> str:
+    paragraphs = _find_first_list(payload, ("paragraphs",))
+    if not isinstance(paragraphs, list):
+        return ""
+
+    extracted: list[str] = []
+    for item in paragraphs:
+        if not isinstance(item, dict):
+            continue
+        text = _paragraph_text_from_json(item)
+        if text:
+            extracted.append(text)
+    return "\n\n".join(extracted).strip()
+
+
+def _extract_json_raw_transcript(payload: object) -> str:
+    transcript = _find_first_string(payload, ("transcript",))
+    return transcript.strip() if transcript else ""
+
+
+def _paragraph_text_from_json(item: dict) -> str:
+    if isinstance(item.get("text"), str) and item["text"].strip():
+        return item["text"].strip()
+    sentences = item.get("sentences")
+    if isinstance(sentences, list):
+        parts = [
+            sentence.get("text", "").strip()
+            for sentence in sentences
+            if isinstance(sentence, dict) and sentence.get("text", "").strip()
+        ]
+        if parts:
+            return " ".join(parts).strip()
+    return ""
+
+
+def _find_first_list(payload: object, keys: tuple[str, ...]) -> list | None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and isinstance(value, list):
+                return value
+            nested = _find_first_list(value, keys)
+            if nested is not None:
+                return nested
+    elif isinstance(payload, list):
+        for item in payload:
+            nested = _find_first_list(item, keys)
+            if nested is not None:
+                return nested
+    return None
+
+
+def _find_first_string(payload: object, keys: tuple[str, ...]) -> str | None:
+    if isinstance(payload, dict):
+        for key, value in payload.items():
+            if key in keys and isinstance(value, str) and value.strip():
+                return value
+            nested = _find_first_string(value, keys)
+            if nested is not None:
+                return nested
+    elif isinstance(payload, list):
+        for item in payload:
+            nested = _find_first_string(item, keys)
+            if nested is not None:
+                return nested
+    return None
 
 
 def detect_speaker_label(paragraph_text: str) -> int | None:

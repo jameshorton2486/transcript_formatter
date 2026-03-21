@@ -1,4 +1,4 @@
-"""CLI entrypoint for generating UFM transcript documents."""
+"""CLI entrypoint for the legal transcript document workflow."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ from datetime import datetime
 from pathlib import Path
 
 from depo_formatter.ufm_engine.document_builder import DocumentBuilder
+
+CLI_APP_NAME = "Legal Transcript System"
 
 
 def get_non_empty_input(prompt: str) -> str:
@@ -42,11 +44,11 @@ def get_valid_date(prompt: str) -> str:
 
 def main() -> None:
     """Run the CLI workflow for transcript generation."""
-    print("\n--- Depo-Pro Transcript Generator ---\n")
+    print(f"\n--- {CLI_APP_NAME} ---\n")
 
     witness_name = get_non_empty_input("Enter witness name: ")
-    date = get_valid_date("Enter deposition date (YYYY-MM-DD): ")
-    is_remote = get_yes_no("Is this a remote deposition? (y/n): ")
+    date = get_valid_date("Enter proceeding date (YYYY-MM-DD): ")
+    is_remote = get_yes_no("Is this a remote proceeding? (y/n): ")
     reporter_name = get_non_empty_input("Enter reporter name: ")
     csr_number = get_non_empty_input("Enter CSR number: ")
     include_signature = get_yes_no("Include signature pages? (y/n): ")
@@ -71,12 +73,12 @@ def main() -> None:
     builder = DocumentBuilder()
 
     try:
-        print("\nGenerating transcript...\n")
+        print("\nGenerating legal transcript package...\n")
         builder.build_document(job_data, str(output_path))
-        print("Transcript created successfully")
+        print("Legal transcript package created successfully")
         print(f"Saved to: {output_path}")
     except Exception as exc:
-        print("\nError generating transcript")
+        print("\nError generating legal transcript package")
         print(str(exc))
 
 

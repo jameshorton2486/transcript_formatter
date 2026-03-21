@@ -22,8 +22,6 @@ class TemplateSelector:
             "title_page",
             "appearance_page",
             "index_page",
-            "transcript_body",
-            "certification",
         ]
 
         if job_data.get("is_remote", False):
@@ -33,5 +31,7 @@ class TemplateSelector:
 
         if job_data.get("include_signature", True):
             selected_templates.extend(["changes_signature", "signature_block"])
+
+        selected_templates.append("certification")
 
         return selected_templates

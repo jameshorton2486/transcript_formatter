@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 
@@ -9,17 +10,33 @@ from docx.oxml.ns import qn
 class UFMFinalizer:
     """Apply optional court-specific finishing rules to a completed document."""
 
-    def apply_headers_footers(self, doc, header_text: str, footer_text: str) -> None:
-        """Apply uniform header and footer text across all document sections."""
+    def apply_headers_footers(
+        self,
+        doc,
+        header_text: str,
+        footer_text: str,
+        show_header: bool,
+        show_footer: bool,
+    ) -> None:
+        """Apply header/footer text with first-page header suppression."""
         for section in doc.sections:
+            section.different_first_page_header_footer = True
             header = section.header
             footer = section.footer
 
             header_para = header.paragraphs[0] if header.paragraphs else header.add_paragraph()
             footer_para = footer.paragraphs[0] if footer.paragraphs else footer.add_paragraph()
 
-            header_para.text = header_text
-            footer_para.text = footer_text
+            header_para.clear()
+            footer_para.clear()
+            header_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            if show_header and header_text:
+                header_para.add_run(header_text)
+
+            if show_footer and footer_text:
+                footer_para.add_run(footer_text)
 
     def apply_page_box(self, doc) -> None:
         """Apply a page border box to each section via direct XML manipulation."""
@@ -55,11 +72,13 @@ class UFMFinalizer:
 
     def finalize_document(self, doc, options: dict) -> None:
         """Apply optional finalization features based on provided toggle settings."""
-        if options.get("apply_header_footer"):
+        if options.get("show_header") or options.get("show_footer") or options.get("apply_header_footer"):
             self.apply_headers_footers(
                 doc,
-                options.get("header_text", ""),
-                options.get("footer_text", ""),
+                options.get("header_text", "").strip(),
+                options.get("footer_text", "").strip(),
+                show_header=bool(options.get("show_header", options.get("apply_header_footer", False))),
+                show_footer=bool(options.get("show_footer", options.get("apply_header_footer", False))),
             )
 
         if options.get("apply_box"):

@@ -1,12 +1,18 @@
-# Depo Transcript Formatter (AI-Assisted)
+# Legal Transcript System
 
-Depo Transcript Formatter is a local Windows 11 desktop application for loading transcript files, applying deterministic formatting rules, optionally sending text to a constrained AI legal-correction engine on demand, reviewing the result, and exporting the final transcript to Word.
+Legal Transcript System is a local Windows 11 desktop application for loading transcript files, applying deterministic formatting rules, optionally sending text to a constrained AI legal-correction engine on demand, reviewing the result, and exporting the final transcript to Word.
+
+It combines two workflows already present in this repository:
+
+- a desktop transcript workspace for loading, cleaning, reviewing, and exporting transcript text
+- a CLI document builder for generating structured legal transcript packages from DOCX templates
 
 ## Features
 
 - Loads transcript files from `.txt`, `.docx`, and `.pdf`
 - Extracts raw text locally from each supported file type
 - Applies non-AI transcript formatting rules
+- Preserves an AI-before-format workflow in the desktop app so deterministic formatting remains the final step
 - Offers one user-triggered AI action:
   - Legal Correction (AI)
 - Shows AI output before any text is replaced
@@ -14,6 +20,7 @@ Depo Transcript Formatter is a local Windows 11 desktop application for loading 
 - Restores the last loaded transcript when the app is reopened
 - Writes application activity and errors to `depo_formatter.log`
 - Exports to `.docx` using Courier New 12pt
+- Builds templated transcript packages through the repository root `main.py` CLI
 
 ## Install
 
@@ -27,6 +34,13 @@ pip install -r requirements.txt
 ## Run
 
 ```powershell
+python main.py
+```
+
+From the repository root you can also run the CLI transcript package builder:
+
+```powershell
+cd C:\Users\james\transcript_formatter
 python main.py
 ```
 
@@ -46,7 +60,7 @@ ANTHROPIC_API_KEY=your_api_key_here
 python main.py
 ```
 
-If `ANTHROPIC_API_KEY` is not set, the AI button will fail safely and show an error dialog.
+If `ANTHROPIC_API_KEY` is not set, the Legal Correction action will fail safely and show an error dialog.
 
 The app sends AI requests with:
 
@@ -65,6 +79,7 @@ The non-AI formatter:
 - applies `Q.` / `A.` formatting only when those labels already exist in the text
 - wraps lines with a 5-space continuation indent
 - inserts a blank line between sections
+- is intended to finalize transcript structure after any optional AI review
 
 The non-AI formatter does not:
 
